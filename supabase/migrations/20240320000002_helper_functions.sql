@@ -10,141 +10,66 @@ BEGIN
 END;
 $$;
 
--- Function to get webhook executions
-CREATE OR REPLACE FUNCTION get_webhook_executions(p_webhook_id UUID, p_limit INTEGER DEFAULT 10)
-RETURNS TABLE (
-    execution_id UUID,
-    webhook_name TEXT,
-    status webhook_status,
-    response_code INTEGER,
-    error_message TEXT,
-    executed_at TIMESTAMP WITH TIME ZONE,
-    execution_duration INTERVAL
-)
-LANGUAGE plpgsql
-SECURITY DEFINER
-AS $$
+-- Function to update last_used_at on API keys
+CREATE OR REPLACE FUNCTION update_api_key_last_used()
+RETURNS TRIGGER AS $$
 BEGIN
-    RETURN QUERY
-    SELECT 
-        we.id as execution_id,
-        w.name as webhook_name,
-        we.status,
-        we.response_code,
-        we.error_message,
-        we.executed_at,
-        we.execution_duration
-    FROM webhook_executions we
-    JOIN webhooks w ON w.id = we.webhook_id
-    WHERE we.webhook_id = p_webhook_id
-    AND we.user_id = auth.uid()
-    ORDER BY we.executed_at DESC
-    LIMIT p_limit;
+    UPDATE api_keys
+    SET last_used_at = CURRENT_TIMESTAMP
+    WHERE id = NEW.api_key_id;
+    RETURN NEW;
 END;
-$$;
+$$ LANGUAGE plpgsql;
 
--- Function to record webhook execution
-CREATE OR REPLACE FUNCTION record_webhook_execution(
-    p_webhook_id UUID,
-    p_status webhook_status,
-    p_response_code INTEGER DEFAULT NULL,
-    p_response_body TEXT DEFAULT NULL,
-    p_error_message TEXT DEFAULT NULL,
-    p_execution_duration INTERVAL DEFAULT NULL
-)
-RETURNS UUID
-LANGUAGE plpgsql
-SECURITY DEFINER
-AS $$
-DECLARE
-    v_execution_id UUID;
+-- Function to log webhook activities
+CREATE OR REPLACE FUNCTION log_webhook_activity()
+RETURNS TRIGGER AS $$
 BEGIN
-    INSERT INTO webhook_executions (
-        webhook_id,
-        status,
-        response_code,
-        response_body,
-        error_message,
-        execution_duration,
-        user_id
-    )
-    VALUES (
-        p_webhook_id,
-        p_status,
-        p_response_code,
-        p_response_body,
-        p_error_message,
-        p_execution_duration,
-        auth.uid()
-    )
-    RETURNING id INTO v_execution_id;
-
-    -- Update webhook last triggered timestamp
-    UPDATE webhooks
-    SET "lastTriggered" = CURRENT_TIMESTAMP
-    WHERE id = p_webhook_id;
-
-    RETURN v_execution_id;
+    IF TG_OP = 'INSERT' THEN
+        PERFORM log_activity(
+            'Webhook Created',
+            format('Created webhook "%s" for URL %s', NEW.name, NEW.url)
+        );
+    ELSIF TG_OP = 'UPDATE' THEN
+        IF OLD.active <> NEW.active THEN
+            PERFORM log_activity(
+                'Webhook Status Changed',
+                format('Webhook "%s" %s', NEW.name, CASE WHEN NEW.active THEN 'activated' ELSE 'deactivated' END)
+            );
+        END IF;
+    ELSIF TG_OP = 'DELETE' THEN
+        PERFORM log_activity(
+            'Webhook Deleted',
+            format('Deleted webhook "%s"', OLD.name)
+        );
+    END IF;
+    RETURN COALESCE(NEW, OLD);
 END;
-$$;
+$$ LANGUAGE plpgsql;
 
--- Function to start calendar sync
-CREATE OR REPLACE FUNCTION start_calendar_sync(p_sync_setting_id UUID)
-RETURNS UUID
-LANGUAGE plpgsql
-SECURITY DEFINER
-AS $$
-DECLARE
-    v_sync_history_id UUID;
+-- Function to log calendar event activities
+CREATE OR REPLACE FUNCTION log_calendar_activity()
+RETURNS TRIGGER AS $$
 BEGIN
-    INSERT INTO calendar_sync_history (
-        sync_setting_id,
-        status,
-        user_id
-    )
-    VALUES (
-        p_sync_setting_id,
-        'partial',
-        auth.uid()
-    )
-    RETURNING id INTO v_sync_history_id;
-
-    -- Update sync settings last synced timestamp
-    UPDATE calendar_sync_settings
-    SET last_synced = CURRENT_TIMESTAMP
-    WHERE id = p_sync_setting_id;
-
-    RETURN v_sync_history_id;
+    IF TG_OP = 'INSERT' THEN
+        PERFORM log_activity(
+            'Event Created',
+            format('Created event "%s" starting on %s', NEW.title, NEW.start_date)
+        );
+    ELSIF TG_OP = 'UPDATE' THEN
+        PERFORM log_activity(
+            'Event Updated',
+            format('Updated event "%s"', NEW.title)
+        );
+    ELSIF TG_OP = 'DELETE' THEN
+        PERFORM log_activity(
+            'Event Deleted',
+            format('Deleted event "%s"', OLD.title)
+        );
+    END IF;
+    RETURN COALESCE(NEW, OLD);
 END;
-$$;
-
--- Function to complete calendar sync
-CREATE OR REPLACE FUNCTION complete_calendar_sync(
-    p_sync_history_id UUID,
-    p_status sync_status,
-    p_events_added INTEGER DEFAULT 0,
-    p_events_updated INTEGER DEFAULT 0,
-    p_events_deleted INTEGER DEFAULT 0,
-    p_error_message TEXT DEFAULT NULL
-)
-RETURNS void
-LANGUAGE plpgsql
-SECURITY DEFINER
-AS $$
-BEGIN
-    UPDATE calendar_sync_history
-    SET
-        status = p_status,
-        events_added = p_events_added,
-        events_updated = p_events_updated,
-        events_deleted = p_events_deleted,
-        error_message = p_error_message,
-        completed_at = CURRENT_TIMESTAMP,
-        duration = CURRENT_TIMESTAMP - started_at
-    WHERE id = p_sync_history_id
-    AND user_id = auth.uid();
-END;
-$$;
+$$ LANGUAGE plpgsql;
 
 -- Function to parse tracking information from description
 CREATE OR REPLACE FUNCTION parse_tracking_info(description TEXT)
@@ -270,4 +195,20 @@ BEGIN
 
     RETURN v_event_uuid;
 END;
-$$; 
+$$;
+
+-- Create triggers
+CREATE TRIGGER webhook_activity_trigger
+    AFTER INSERT OR UPDATE OR DELETE ON webhooks
+    FOR EACH ROW
+    EXECUTE FUNCTION log_webhook_activity();
+
+CREATE TRIGGER calendar_activity_trigger
+    AFTER INSERT OR UPDATE OR DELETE ON calendar_events
+    FOR EACH ROW
+    EXECUTE FUNCTION log_calendar_activity();
+
+CREATE TRIGGER api_key_last_used_trigger
+    AFTER INSERT ON api_requests
+    FOR EACH ROW
+    EXECUTE FUNCTION update_api_key_last_used(); 

@@ -1,19 +1,39 @@
--- Enable UUID generation
+-- Drop existing tables if they exist
+DROP TABLE IF EXISTS rate_limits CASCADE;
+DROP TABLE IF EXISTS api_requests CASCADE;
+DROP TABLE IF EXISTS api_keys CASCADE;
+DROP TABLE IF EXISTS webhook_events CASCADE;
+DROP TABLE IF EXISTS webhook_executions CASCADE;
+DROP TABLE IF EXISTS calendar_sync_history CASCADE;
+DROP TABLE IF EXISTS calendar_sync_settings CASCADE;
+DROP TABLE IF EXISTS webhooks CASCADE;
+DROP TABLE IF EXISTS calendar_events CASCADE;
+DROP TABLE IF EXISTS activity_logs CASCADE;
+
+-- Drop existing types
+DROP TYPE IF EXISTS webhook_status CASCADE;
+DROP TYPE IF EXISTS sync_status CASCADE;
+DROP TYPE IF EXISTS calendar_provider CASCADE;
+DROP TYPE IF EXISTS shipping_service CASCADE;
+DROP TYPE IF EXISTS delivery_status CASCADE;
+
+-- Create extensions
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 -- Create custom types for status enums
-CREATE TYPE webhook_status AS ENUM ('success', 'failed', 'pending');
+CREATE TYPE webhook_status AS ENUM ('success', 'failed', 'pending', 'retrying');
 CREATE TYPE sync_status AS ENUM ('success', 'failed', 'partial');
 CREATE TYPE calendar_provider AS ENUM ('google', 'outlook', 'ical');
 CREATE TYPE shipping_service AS ENUM ('UPS', 'FedEx', 'USPS', 'Other');
 CREATE TYPE delivery_status AS ENUM ('pending', 'in_transit', 'delivered', 'cancelled');
 
--- Create calendar_events table
+-- Create calendar_events table with shipping tracking
 CREATE TABLE calendar_events (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     event_id TEXT UNIQUE,
     title TEXT NOT NULL,
     description TEXT,
+    location TEXT,
     start_date DATE NOT NULL,
     start_time TIME,
     end_date DATE NOT NULL,
@@ -31,74 +51,125 @@ CREATE TABLE calendar_events (
     metadata JSONB DEFAULT '{}'::JSONB
 );
 
--- Create activity_logs table
-CREATE TABLE activity_logs (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    action TEXT NOT NULL,
-    details TEXT,
-    "createdAt" TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE
-);
-
 -- Create webhooks table
 CREATE TABLE webhooks (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     name TEXT NOT NULL,
     url TEXT NOT NULL,
+    secret TEXT,
     active BOOLEAN DEFAULT true,
     description TEXT,
-    "createdAt" TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    "lastTriggered" TIMESTAMP WITH TIME ZONE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    last_triggered TIMESTAMP WITH TIME ZONE,
+    failure_count INTEGER DEFAULT 0,
+    events TEXT[] DEFAULT ARRAY[]::TEXT[],
+    headers JSONB DEFAULT '{}'::JSONB,
+    retry_count INTEGER DEFAULT 3,
+    timeout_ms INTEGER DEFAULT 5000,
     user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE
 );
 
--- Create webhook_executions table
-CREATE TABLE webhook_executions (
+-- Create webhook_events table
+CREATE TABLE webhook_events (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     webhook_id UUID REFERENCES webhooks(id) ON DELETE CASCADE,
-    status webhook_status NOT NULL DEFAULT 'pending',
-    response_code INTEGER,
+    event_type TEXT NOT NULL,
+    payload JSONB NOT NULL,
+    status webhook_status DEFAULT 'pending',
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    processed_at TIMESTAMP WITH TIME ZONE,
+    response_status INTEGER,
     response_body TEXT,
     error_message TEXT,
-    executed_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    execution_duration INTERVAL,
+    retry_count INTEGER DEFAULT 0,
     user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE
 );
 
--- Create calendar_sync_settings table
-CREATE TABLE calendar_sync_settings (
+-- Create API keys table
+CREATE TABLE api_keys (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    provider calendar_provider NOT NULL,
-    calendar_id TEXT NOT NULL,
-    sync_token TEXT,
-    last_synced TIMESTAMP WITH TIME ZONE,
-    sync_frequency INTERVAL DEFAULT '1 day'::INTERVAL,
-    is_active BOOLEAN DEFAULT true,
+    name TEXT NOT NULL,
+    key_hash TEXT NOT NULL UNIQUE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    settings JSONB DEFAULT '{}'::JSONB,
+    expires_at TIMESTAMP WITH TIME ZONE,
+    last_used_at TIMESTAMP WITH TIME ZONE,
+    is_active BOOLEAN DEFAULT true,
+    permissions TEXT[] DEFAULT ARRAY[]::TEXT[],
     user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE
 );
 
--- Create calendar_sync_history table
-CREATE TABLE calendar_sync_history (
+-- Create API requests log
+CREATE TABLE api_requests (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    sync_setting_id UUID REFERENCES calendar_sync_settings(id) ON DELETE CASCADE,
-    status sync_status NOT NULL DEFAULT 'partial',
-    events_added INTEGER DEFAULT 0,
-    events_updated INTEGER DEFAULT 0,
-    events_deleted INTEGER DEFAULT 0,
+    api_key_id UUID REFERENCES api_keys(id) ON DELETE SET NULL,
+    method TEXT NOT NULL,
+    path TEXT NOT NULL,
+    status_code INTEGER NOT NULL,
+    ip_address TEXT,
+    user_agent TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    response_time_ms INTEGER,
     error_message TEXT,
-    started_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    completed_at TIMESTAMP WITH TIME ZONE,
-    duration INTERVAL,
+    user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE
+);
+
+-- Create rate limiting table
+CREATE TABLE rate_limits (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    api_key_id UUID REFERENCES api_keys(id) ON DELETE CASCADE,
+    endpoint TEXT NOT NULL,
+    requests_count INTEGER DEFAULT 0,
+    window_start TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    window_size_minutes INTEGER DEFAULT 60,
+    max_requests INTEGER DEFAULT 1000,
+    user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
+    UNIQUE(api_key_id, endpoint)
+);
+
+-- Create activity_logs table
+CREATE TABLE activity_logs (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    action TEXT NOT NULL,
+    details TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE
 );
 
 -- Create indexes for better query performance
 CREATE INDEX idx_calendar_events_user_id ON calendar_events(user_id);
-CREATE INDEX idx_calendar_events_start_time ON calendar_events("startTime");
-CREATE INDEX idx_activity_logs_user_id ON activity_logs(user_id);
+CREATE INDEX idx_calendar_events_start_date ON calendar_events(start_date);
+CREATE INDEX idx_calendar_events_status ON calendar_events(status);
+CREATE INDEX idx_calendar_events_service ON calendar_events(service);
+CREATE INDEX idx_calendar_events_tracking ON calendar_events(tracking_number);
+CREATE INDEX idx_calendar_events_state ON calendar_events(state_abbreviation);
+
 CREATE INDEX idx_webhooks_user_id ON webhooks(user_id);
-CREATE INDEX idx_webhook_executions_webhook_id ON webhook_executions(webhook_id);
-CREATE INDEX idx_calendar_sync_settings_user_id ON calendar_sync_settings(user_id);
-CREATE INDEX idx_calendar_sync_history_sync_setting_id ON calendar_sync_history(sync_setting_id); 
+CREATE INDEX idx_webhooks_active ON webhooks(active);
+CREATE INDEX idx_webhooks_events ON webhooks USING gin(events);
+
+CREATE INDEX idx_webhook_events_webhook_id ON webhook_events(webhook_id);
+CREATE INDEX idx_webhook_events_status ON webhook_events(status);
+CREATE INDEX idx_webhook_events_created ON webhook_events(created_at);
+
+CREATE INDEX idx_api_keys_user_id ON api_keys(user_id);
+CREATE INDEX idx_api_keys_hash ON api_keys(key_hash);
+CREATE INDEX idx_api_keys_active ON api_keys(is_active);
+
+CREATE INDEX idx_api_requests_key_id ON api_requests(api_key_id);
+CREATE INDEX idx_api_requests_created ON api_requests(created_at);
+CREATE INDEX idx_api_requests_user_id ON api_requests(user_id);
+
+CREATE INDEX idx_rate_limits_window ON rate_limits(window_start);
+CREATE INDEX idx_rate_limits_user_id ON rate_limits(user_id);
+
+CREATE INDEX idx_activity_logs_user_id ON activity_logs(user_id);
+CREATE INDEX idx_activity_logs_created ON activity_logs(created_at);
+
+-- Enable RLS
+ALTER TABLE calendar_events ENABLE ROW LEVEL SECURITY;
+ALTER TABLE webhooks ENABLE ROW LEVEL SECURITY;
+ALTER TABLE webhook_events ENABLE ROW LEVEL SECURITY;
+ALTER TABLE api_keys ENABLE ROW LEVEL SECURITY;
+ALTER TABLE api_requests ENABLE ROW LEVEL SECURITY;
+ALTER TABLE rate_limits ENABLE ROW LEVEL SECURITY;
+ALTER TABLE activity_logs ENABLE ROW LEVEL SECURITY; 

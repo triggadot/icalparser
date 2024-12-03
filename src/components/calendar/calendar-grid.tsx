@@ -1,202 +1,131 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import {
-  flexRender,
-  getCoreRowModel,
-  useReactTable,
-  getPaginationRowModel,
-  getSortedRowModel,
-  type SortingState,
-} from '@tanstack/react-table';
+import { useEffect, useState } from 'react';
+import { format } from 'date-fns';
+import { Calendar } from '@/components/ui/calendar';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Package2, Truck } from 'lucide-react';
 import { supabase } from '@/lib/supabase/client';
-import type { CalendarEventRow } from '@/types/database';
-import { format, parseISO } from 'date-fns';
-import { Button } from '@/components/ui/button';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
+import { Database } from '@/lib/supabase/database.types';
 
-const columns = [
-  {
-    accessorKey: 'summary',
-    header: 'Summary',
-  },
-  {
-    accessorKey: 'start_date',
-    header: 'Start Date',
-    cell: ({ getValue }: any) => format(parseISO(getValue()), 'PPp'),
-  },
-  {
-    accessorKey: 'end_date',
-    header: 'End Date',
-    cell: ({ getValue }: any) => format(parseISO(getValue()), 'PPp'),
-  },
-  {
-    accessorKey: 'location',
-    header: 'Location',
-  },
-  {
-    accessorKey: 'status',
-    header: 'Status',
-  },
-  {
-    accessorKey: 'sync_status',
-    header: 'Sync Status',
-    cell: ({ getValue }: any) => {
-      const value = getValue();
-      return (
-        <div
-          className={`px-2 py-1 rounded-full text-xs inline-block ${
-            value === 'synced'
-              ? 'bg-green-100 text-green-800'
-              : value === 'pending'
-              ? 'bg-yellow-100 text-yellow-800'
-              : 'bg-red-100 text-red-800'
-          }`}
-        >
-          {value}
-        </div>
-      );
-    },
-  },
-];
+type CalendarEvent = Database['public']['Tables']['calendar_events']['Row'];
 
-export const CalendarGrid = () => {
-  const [events, setEvents] = useState<CalendarEventRow[]>([]);
+export function CalendarGrid() {
+  const [events, setEvents] = useState<CalendarEvent[]>([]);
+  const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
   const [loading, setLoading] = useState(true);
-  const [sorting, setSorting] = useState<SortingState>([]);
-
-  const table = useReactTable({
-    data: events,
-    columns,
-    getCoreRowModel: getCoreRowModel(),
-    getPaginationRowModel: getPaginationRowModel(),
-    getSortedRowModel: getSortedRowModel(),
-    onSortingChange: setSorting,
-    state: {
-      sorting,
-    },
-  });
 
   useEffect(() => {
-    const fetchEvents = async () => {
+    fetchEvents();
+  }, []);
+
+  const fetchEvents = async () => {
+    try {
       const { data, error } = await supabase
         .from('calendar_events')
         .select('*')
-        .order('startTime', { ascending: true });
+        .order('start_date', { ascending: true });
 
-      if (error) {
-        console.error('Error fetching events:', error);
-        return;
-      }
-
-      const transformedData: CalendarEventRow[] = data.map(event => ({
-        id: event.id,
-        summary: event.title,
-        description: null,
-        location: null,
-        start_date: event.startTime,
-        end_date: event.endTime,
-        created_at: event.createdAt,
-        last_modified: event.createdAt,
-        status: 'confirmed',
-        organizer: null,
-        sync_status: 'synced',
-        tracking_number: null,
-        tracking_link: null,
-        service: null,
-        state_abbreviation: null
-      }));
-
-      setEvents(transformedData);
+      if (error) throw error;
+      setEvents(data || []);
+    } catch (error) {
+      console.error('Error fetching events:', error);
+    } finally {
       setLoading(false);
-    };
+    }
+  };
 
-    fetchEvents();
+  const getDayEvents = (date: Date) => {
+    return events.filter(event => {
+      const eventDate = new Date(event.start_date);
+      return (
+        eventDate.getDate() === date.getDate() &&
+        eventDate.getMonth() === date.getMonth() &&
+        eventDate.getFullYear() === date.getFullYear()
+      );
+    });
+  };
 
-    const subscription = supabase
-      .channel('calendar_events_changes')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'calendar_events' },
-        (payload) => {
-          fetchEvents();
-        }
-      )
-      .subscribe();
+  const getStatusColor = (status: CalendarEvent['status']) => {
+    switch (status) {
+      case 'delivered':
+        return 'bg-green-500';
+      case 'in_transit':
+        return 'bg-blue-500';
+      case 'cancelled':
+        return 'bg-red-500';
+      default:
+        return 'bg-gray-500';
+    }
+  };
 
-    return () => {
-      subscription.unsubscribe();
-    };
-  }, []);
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-[400px]">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900" />
-      </div>
-    );
-  }
+  const getServiceIcon = (service: CalendarEvent['service']) => {
+    switch (service) {
+      case 'UPS':
+      case 'FedEx':
+      case 'USPS':
+        return <Truck className="h-4 w-4" />;
+      default:
+        return <Package2 className="h-4 w-4" />;
+    }
+  };
 
   return (
-    <div className="rounded-md border">
-      <Table>
-        <TableHeader>
-          {table.getHeaderGroups().map((headerGroup) => (
-            <TableRow key={headerGroup.id}>
-              {headerGroup.headers.map((header) => (
-                <TableHead key={header.id}>
-                  {flexRender(
-                    header.column.columnDef.header,
-                    header.getContext()
-                  )}
-                </TableHead>
-              ))}
-            </TableRow>
-          ))}
-        </TableHeader>
-        <TableBody>
-          {table.getRowModel().rows.map((row) => (
-            <TableRow key={row.id}>
-              {row.getVisibleCells().map((cell) => (
-                <TableCell key={cell.id}>
-                  {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                </TableCell>
-              ))}
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
-      <div className="flex items-center justify-between p-4 border-t">
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => table.previousPage()}
-            disabled={!table.getCanPreviousPage()}
-          >
-            Previous
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => table.nextPage()}
-            disabled={!table.getCanNextPage()}
-          >
-            Next
-          </Button>
+    <Card>
+      <CardHeader>
+        <CardTitle>Calendar</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="grid gap-4 md:grid-cols-2">
+          <Calendar
+            mode="single"
+            selected={selectedDate}
+            onSelect={setSelectedDate}
+            className="rounded-md border"
+          />
+          <div className="space-y-4">
+            <h3 className="font-semibold">
+              Events for {selectedDate ? format(selectedDate, 'PP') : 'No date selected'}
+            </h3>
+            {loading ? (
+              <div>Loading events...</div>
+            ) : selectedDate ? (
+              getDayEvents(selectedDate).length > 0 ? (
+                getDayEvents(selectedDate).map(event => (
+                  <div
+                    key={event.id}
+                    className="flex items-center justify-between rounded-lg border p-3"
+                  >
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        {getServiceIcon(event.service)}
+                        <span className="font-medium">{event.title}</span>
+                      </div>
+                      {event.tracking_number && (
+                        <div className="text-sm text-muted-foreground">
+                          Tracking: {event.tracking_number}
+                        </div>
+                      )}
+                      <div className="text-sm text-muted-foreground">
+                        {event.start_time ? format(new Date(`${event.start_date}T${event.start_time}`), 'p') : 'All day'}
+                      </div>
+                    </div>
+                    <Badge
+                      variant="secondary"
+                      className={`${getStatusColor(event.status)} text-white`}
+                    >
+                      {event.status}
+                    </Badge>
+                  </div>
+                ))
+              ) : (
+                <div>No events for this date</div>
+              )
+            ) : null}
+          </div>
         </div>
-        <div className="text-sm text-muted-foreground">
-          Page {table.getState().pagination.pageIndex + 1} of{' '}
-          {table.getPageCount()}
-        </div>
-      </div>
-    </div>
+      </CardContent>
+    </Card>
   );
-}; 
+} 

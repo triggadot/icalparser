@@ -2,17 +2,19 @@
 
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase/client';
-import { CalendarEventRow } from '@/types/database';
-import { format, parseISO } from 'date-fns';
+import { format } from 'date-fns';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { ArrowRight, Upload } from 'lucide-react';
 import Link from 'next/link';
 import { SlideIn } from '@/components/motion/slide-in';
 import { CardSkeleton } from '@/components/ui/skeleton';
+import { Database } from '@/lib/supabase/database.types';
+
+type CalendarEvent = Database['public']['Tables']['calendar_events']['Row'];
 
 export function RecentUploads() {
-  const [uploads, setUploads] = useState<CalendarEventRow[]>([]);
+  const [uploads, setUploads] = useState<CalendarEvent[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -24,31 +26,12 @@ export function RecentUploads() {
         const { data, error } = await supabase
           .from('calendar_events')
           .select('*')
-          .gte('createdAt', sevenDaysAgo.toISOString())
-          .order('createdAt', { ascending: false })
+          .gte('created_at', sevenDaysAgo.toISOString())
+          .order('created_at', { ascending: false })
           .limit(5);
 
         if (error) throw error;
-        
-        const transformedData: CalendarEventRow[] = data.map(event => ({
-          id: event.id,
-          summary: event.title,
-          description: null,
-          location: null,
-          start_date: event.startTime,
-          end_date: event.endTime,
-          created_at: event.createdAt,
-          last_modified: event.createdAt,
-          status: 'confirmed',
-          organizer: null,
-          sync_status: 'synced',
-          tracking_number: null,
-          tracking_link: null,
-          service: null,
-          state_abbreviation: null
-        }));
-
-        setUploads(transformedData);
+        setUploads(data || []);
       } catch (error) {
         console.error('Error fetching recent uploads:', error);
       } finally {
@@ -90,10 +73,15 @@ export function RecentUploads() {
                 >
                   <div className="flex items-start justify-between gap-4 py-2">
                     <div className="space-y-1">
-                      <p className="font-medium">{upload.summary}</p>
+                      <p className="font-medium">{upload.title}</p>
                       <p className="text-sm text-muted-foreground">
-                        Uploaded {format(parseISO(upload.created_at), 'PPp')}
+                        Uploaded {format(new Date(upload.created_at), 'PPp')}
                       </p>
+                      {upload.tracking_number && (
+                        <p className="text-sm text-muted-foreground">
+                          Tracking: {upload.tracking_number}
+                        </p>
+                      )}
                     </div>
                   </div>
                 </SlideIn>

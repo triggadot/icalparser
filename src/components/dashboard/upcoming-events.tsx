@@ -2,16 +2,18 @@
 
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase/client';
-import { CalendarEventRow } from '@/types/database';
-import { format, parseISO } from 'date-fns';
+import { format } from 'date-fns';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { ArrowRight } from 'lucide-react';
+import { ArrowRight, Package2, Truck } from 'lucide-react';
 import Link from 'next/link';
+import { Database } from '@/lib/supabase/database.types';
+
+type CalendarEvent = Database['public']['Tables']['calendar_events']['Row'];
 
 export function UpcomingEvents() {
-  const [events, setEvents] = useState<CalendarEventRow[]>([]);
+  const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -21,31 +23,12 @@ export function UpcomingEvents() {
         const { data, error } = await supabase
           .from('calendar_events')
           .select('*')
-          .gte('startTime', now)
-          .order('startTime', { ascending: true })
+          .gte('start_date', now.split('T')[0])
+          .order('start_date', { ascending: true })
           .limit(5);
 
         if (error) throw error;
-        
-        const transformedData: CalendarEventRow[] = data.map(event => ({
-          id: event.id,
-          summary: event.title,
-          description: null,
-          location: null,
-          start_date: event.startTime,
-          end_date: event.endTime,
-          created_at: event.createdAt,
-          last_modified: event.createdAt,
-          status: 'confirmed',
-          organizer: null,
-          sync_status: 'synced',
-          tracking_number: null,
-          tracking_link: null,
-          service: null,
-          state_abbreviation: null
-        }));
-
-        setEvents(transformedData);
+        setEvents(data || []);
       } catch (error) {
         console.error('Error fetching upcoming events:', error);
       } finally {
@@ -55,6 +38,30 @@ export function UpcomingEvents() {
 
     fetchUpcomingEvents();
   }, []);
+
+  const getStatusColor = (status: CalendarEvent['status']) => {
+    switch (status) {
+      case 'delivered':
+        return 'bg-green-500';
+      case 'in_transit':
+        return 'bg-blue-500';
+      case 'cancelled':
+        return 'bg-red-500';
+      default:
+        return 'bg-gray-500';
+    }
+  };
+
+  const getServiceIcon = (service: CalendarEvent['service']) => {
+    switch (service) {
+      case 'UPS':
+      case 'FedEx':
+      case 'USPS':
+        return <Truck className="h-4 w-4" />;
+      default:
+        return <Package2 className="h-4 w-4" />;
+    }
+  };
 
   return (
     <Card>
@@ -84,9 +91,16 @@ export function UpcomingEvents() {
                 className="flex items-start justify-between gap-4 py-2"
               >
                 <div className="space-y-1">
-                  <p className="font-medium">{event.summary}</p>
+                  <div className="flex items-center gap-2">
+                    {getServiceIcon(event.service)}
+                    <span className="font-medium">{event.title}</span>
+                  </div>
                   <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <span>{format(parseISO(event.start_date), 'PPp')}</span>
+                    <span>
+                      {event.start_time
+                        ? format(new Date(`${event.start_date}T${event.start_time}`), 'PPp')
+                        : format(new Date(event.start_date), 'PP')}
+                    </span>
                     {event.location && (
                       <>
                         <span>•</span>
@@ -94,15 +108,15 @@ export function UpcomingEvents() {
                       </>
                     )}
                   </div>
+                  {event.tracking_number && (
+                    <div className="text-sm text-muted-foreground">
+                      Tracking: {event.tracking_number}
+                    </div>
+                  )}
                 </div>
                 <Badge
-                  variant={
-                    event.status === 'confirmed'
-                      ? 'default'
-                      : event.status === 'tentative'
-                      ? 'secondary'
-                      : 'destructive'
-                  }
+                  variant="secondary"
+                  className={`${getStatusColor(event.status)} text-white`}
                 >
                   {event.status}
                 </Badge>

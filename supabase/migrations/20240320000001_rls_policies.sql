@@ -7,92 +7,120 @@ ALTER TABLE calendar_sync_settings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE calendar_sync_history ENABLE ROW LEVEL SECURITY;
 
 -- Calendar Events Policies
-CREATE POLICY "Users can view their own calendar events"
-    ON calendar_events FOR SELECT
-    USING (auth.uid() = user_id);
+CREATE POLICY "Enable insert for authenticated users only"
+ON calendar_events FOR INSERT
+TO authenticated
+WITH CHECK (auth.uid() = user_id);
 
-CREATE POLICY "Users can create their own calendar events"
-    ON calendar_events FOR INSERT
-    WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "Enable read access for own events"
+ON calendar_events FOR SELECT
+TO authenticated
+USING (auth.uid() = user_id);
 
-CREATE POLICY "Users can update their own calendar events"
-    ON calendar_events FOR UPDATE
-    USING (auth.uid() = user_id)
-    WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "Enable update for own events"
+ON calendar_events FOR UPDATE
+TO authenticated
+USING (auth.uid() = user_id)
+WITH CHECK (auth.uid() = user_id);
 
-CREATE POLICY "Users can delete their own calendar events"
-    ON calendar_events FOR DELETE
-    USING (auth.uid() = user_id);
+CREATE POLICY "Enable delete for own events"
+ON calendar_events FOR DELETE
+TO authenticated
+USING (auth.uid() = user_id);
 
 -- Activity Logs Policies
-CREATE POLICY "Users can view their own activity logs"
-    ON activity_logs FOR SELECT
-    USING (auth.uid() = user_id);
+CREATE POLICY "Enable insert for authenticated users only"
+ON activity_logs FOR INSERT
+TO authenticated
+WITH CHECK (auth.uid() = user_id);
 
-CREATE POLICY "Users can create activity logs"
-    ON activity_logs FOR INSERT
-    WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "Enable read access for own logs"
+ON activity_logs FOR SELECT
+TO authenticated
+USING (auth.uid() = user_id);
 
 -- Webhooks Policies
-CREATE POLICY "Users can view their own webhooks"
-    ON webhooks FOR SELECT
-    USING (auth.uid() = user_id);
+CREATE POLICY "Enable insert for authenticated users only"
+ON webhooks FOR INSERT
+TO authenticated
+WITH CHECK (auth.uid() = user_id);
 
-CREATE POLICY "Users can create their own webhooks"
-    ON webhooks FOR INSERT
-    WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "Enable read access for own webhooks"
+ON webhooks FOR SELECT
+TO authenticated
+USING (auth.uid() = user_id);
 
-CREATE POLICY "Users can update their own webhooks"
-    ON webhooks FOR UPDATE
-    USING (auth.uid() = user_id)
-    WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "Enable update for own webhooks"
+ON webhooks FOR UPDATE
+TO authenticated
+USING (auth.uid() = user_id)
+WITH CHECK (auth.uid() = user_id);
 
-CREATE POLICY "Users can delete their own webhooks"
-    ON webhooks FOR DELETE
-    USING (auth.uid() = user_id);
+CREATE POLICY "Enable delete for own webhooks"
+ON webhooks FOR DELETE
+TO authenticated
+USING (auth.uid() = user_id);
 
 -- Webhook Executions Policies
-CREATE POLICY "Users can view their own webhook executions"
-    ON webhook_executions FOR SELECT
-    USING (auth.uid() = user_id);
+CREATE POLICY "Enable insert for authenticated users only"
+ON webhook_executions FOR INSERT
+TO authenticated
+WITH CHECK (auth.uid() = user_id);
 
-CREATE POLICY "Users can create webhook executions"
-    ON webhook_executions FOR INSERT
-    WITH CHECK (auth.uid() = user_id);
-
-CREATE POLICY "Users can update webhook executions"
-    ON webhook_executions FOR UPDATE
-    USING (auth.uid() = user_id)
-    WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "Enable read access for own executions"
+ON webhook_executions FOR SELECT
+TO authenticated
+USING (auth.uid() = user_id);
 
 -- Calendar Sync Settings Policies
-CREATE POLICY "Users can view their own sync settings"
-    ON calendar_sync_settings FOR SELECT
-    USING (auth.uid() = user_id);
+CREATE POLICY "Enable insert for authenticated users only"
+ON calendar_sync_settings FOR INSERT
+TO authenticated
+WITH CHECK (auth.uid() = user_id);
 
-CREATE POLICY "Users can create their own sync settings"
-    ON calendar_sync_settings FOR INSERT
-    WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "Enable read access for own settings"
+ON calendar_sync_settings FOR SELECT
+TO authenticated
+USING (auth.uid() = user_id);
 
-CREATE POLICY "Users can update their own sync settings"
-    ON calendar_sync_settings FOR UPDATE
-    USING (auth.uid() = user_id)
-    WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "Enable update for own settings"
+ON calendar_sync_settings FOR UPDATE
+TO authenticated
+USING (auth.uid() = user_id)
+WITH CHECK (auth.uid() = user_id);
 
-CREATE POLICY "Users can delete their own sync settings"
-    ON calendar_sync_settings FOR DELETE
-    USING (auth.uid() = user_id);
+CREATE POLICY "Enable delete for own settings"
+ON calendar_sync_settings FOR DELETE
+TO authenticated
+USING (auth.uid() = user_id);
 
 -- Calendar Sync History Policies
-CREATE POLICY "Users can view their own sync history"
-    ON calendar_sync_history FOR SELECT
-    USING (auth.uid() = user_id);
+CREATE POLICY "Enable insert for authenticated users only"
+ON calendar_sync_history FOR INSERT
+TO authenticated
+WITH CHECK (auth.uid() = user_id);
 
-CREATE POLICY "Users can create sync history entries"
-    ON calendar_sync_history FOR INSERT
-    WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "Enable read access for own history"
+ON calendar_sync_history FOR SELECT
+TO authenticated
+USING (auth.uid() = user_id);
 
-CREATE POLICY "Users can update sync history entries"
-    ON calendar_sync_history FOR UPDATE
-    USING (auth.uid() = user_id)
-    WITH CHECK (auth.uid() = user_id); 
+-- Anonymous access for public endpoints
+CREATE POLICY "Enable anonymous read for public events"
+ON calendar_events FOR SELECT
+TO anon
+USING (true);
+
+CREATE POLICY "Enable anonymous webhook execution"
+ON webhook_executions FOR INSERT
+TO anon
+WITH CHECK (true);
+
+-- For development/testing only - remove in production
+CREATE POLICY "Enable anonymous insert for testing"
+ON calendar_events FOR INSERT
+TO anon
+WITH CHECK (true);
+
+COMMENT ON POLICY "Enable anonymous insert for testing" ON calendar_events
+IS 'WARNING: Remove this policy before deploying to production'; 

@@ -9,27 +9,315 @@ export type Json =
 export interface Database {
   public: {
     Tables: {
-      calendar_events: {
+      api_keys: {
         Row: {
           id: string
-          title: string
-          startTime: string
-          endTime: string
-          createdAt: string
+          created_at: string
+          updated_at: string
+          name: string
+          key_hash: string
+          permissions: string[]
+          is_active: boolean
+          expires_at: string | null
+          last_used_at: string | null
+          rate_limit: number
+          rate_limit_window: string
+          metadata: Json
         }
         Insert: {
           id?: string
-          title: string
-          startTime: string
-          endTime: string
-          createdAt?: string
+          created_at?: string
+          updated_at?: string
+          name: string
+          key_hash: string
+          permissions: string[]
+          is_active?: boolean
+          expires_at?: string | null
+          last_used_at?: string | null
+          rate_limit?: number
+          rate_limit_window?: string
+          metadata?: Json
         }
         Update: {
           id?: string
+          created_at?: string
+          updated_at?: string
+          name?: string
+          key_hash?: string
+          permissions?: string[]
+          is_active?: boolean
+          expires_at?: string | null
+          last_used_at?: string | null
+          rate_limit?: number
+          rate_limit_window?: string
+          metadata?: Json
+        }
+      }
+      api_key_usage: {
+        Row: {
+          id: string
+          created_at: string
+          api_key_id: string
+          endpoint: string
+          method: string
+          status_code: number
+          response_time: number
+          metadata: Json
+        }
+        Insert: {
+          id?: string
+          created_at?: string
+          api_key_id: string
+          endpoint: string
+          method: string
+          status_code: number
+          response_time: number
+          metadata?: Json
+        }
+        Update: {
+          id?: string
+          created_at?: string
+          api_key_id?: string
+          endpoint?: string
+          method?: string
+          status_code?: number
+          response_time?: number
+          metadata?: Json
+        }
+      }
+      calendar_events: {
+        Row: {
+          id: string
+          event_id: string | null
+          title: string
+          description: string | null
+          location: string | null
+          start_date: string
+          start_time: string | null
+          end_date: string
+          end_time: string | null
+          last_updated: string
+          status: 'pending' | 'in_transit' | 'delivered' | 'cancelled'
+          tracking_number: string | null
+          tracking_link: string | null
+          last_tracked: string | null
+          service: 'UPS' | 'FedEx' | 'USPS' | 'Other' | null
+          tp_id: string | null
+          state_abbreviation: string | null
+          created_at: string
+          user_id: string
+          metadata: Json
+        }
+        Insert: {
+          id?: string
+          event_id?: string | null
+          title: string
+          description?: string | null
+          location?: string | null
+          start_date: string
+          start_time?: string | null
+          end_date: string
+          end_time?: string | null
+          last_updated?: string
+          status?: 'pending' | 'in_transit' | 'delivered' | 'cancelled'
+          tracking_number?: string | null
+          tracking_link?: string | null
+          last_tracked?: string | null
+          service?: 'UPS' | 'FedEx' | 'USPS' | 'Other' | null
+          tp_id?: string | null
+          state_abbreviation?: string | null
+          created_at?: string
+          user_id: string
+          metadata?: Json
+        }
+        Update: {
+          id?: string
+          event_id?: string | null
           title?: string
-          startTime?: string
-          endTime?: string
-          createdAt?: string
+          description?: string | null
+          location?: string | null
+          start_date?: string
+          start_time?: string | null
+          end_date?: string
+          end_time?: string | null
+          last_updated?: string
+          status?: 'pending' | 'in_transit' | 'delivered' | 'cancelled'
+          tracking_number?: string | null
+          tracking_link?: string | null
+          last_tracked?: string | null
+          service?: 'UPS' | 'FedEx' | 'USPS' | 'Other' | null
+          tp_id?: string | null
+          state_abbreviation?: string | null
+          created_at?: string
+          user_id?: string
+          metadata?: Json
+        }
+      }
+      webhooks: {
+        Row: {
+          id: string
+          name: string
+          url: string
+          secret: string | null
+          active: boolean
+          description: string | null
+          created_at: string
+          last_triggered: string | null
+          failure_count: number
+          events: string[]
+          headers: Json
+          retry_count: number
+          timeout_ms: number
+          user_id: string
+        }
+        Insert: {
+          id?: string
+          name: string
+          url: string
+          secret?: string | null
+          active?: boolean
+          description?: string | null
+          created_at?: string
+          last_triggered?: string | null
+          failure_count?: number
+          events?: string[]
+          headers?: Json
+          retry_count?: number
+          timeout_ms?: number
+          user_id: string
+        }
+        Update: {
+          id?: string
+          name?: string
+          url?: string
+          secret?: string | null
+          active?: boolean
+          description?: string | null
+          created_at?: string
+          last_triggered?: string | null
+          failure_count?: number
+          events?: string[]
+          headers?: Json
+          retry_count?: number
+          timeout_ms?: number
+          user_id?: string
+        }
+      }
+      webhook_events: {
+        Row: {
+          id: string
+          webhook_id: string
+          event_type: string
+          payload: Json
+          status: 'success' | 'failed' | 'pending' | 'retrying'
+          created_at: string
+          processed_at: string | null
+          response_status: number | null
+          response_body: string | null
+          error_message: string | null
+          retry_count: number
+          user_id: string
+        }
+        Insert: {
+          id?: string
+          webhook_id: string
+          event_type: string
+          payload: Json
+          status?: 'success' | 'failed' | 'pending' | 'retrying'
+          created_at?: string
+          processed_at?: string | null
+          response_status?: number | null
+          response_body?: string | null
+          error_message?: string | null
+          retry_count?: number
+          user_id: string
+        }
+        Update: {
+          id?: string
+          webhook_id?: string
+          event_type?: string
+          payload?: Json
+          status?: 'success' | 'failed' | 'pending' | 'retrying'
+          created_at?: string
+          processed_at?: string | null
+          response_status?: number | null
+          response_body?: string | null
+          error_message?: string | null
+          retry_count?: number
+          user_id?: string
+        }
+      }
+      api_requests: {
+        Row: {
+          id: string
+          api_key_id: string | null
+          method: string
+          path: string
+          status_code: number
+          ip_address: string | null
+          user_agent: string | null
+          created_at: string
+          response_time_ms: number | null
+          error_message: string | null
+          user_id: string
+        }
+        Insert: {
+          id?: string
+          api_key_id?: string | null
+          method: string
+          path: string
+          status_code: number
+          ip_address?: string | null
+          user_agent?: string | null
+          created_at?: string
+          response_time_ms?: number | null
+          error_message?: string | null
+          user_id: string
+        }
+        Update: {
+          id?: string
+          api_key_id?: string | null
+          method?: string
+          path?: string
+          status_code?: number
+          ip_address?: string | null
+          user_agent?: string | null
+          created_at?: string
+          response_time_ms?: number | null
+          error_message?: string | null
+          user_id?: string
+        }
+      }
+      rate_limits: {
+        Row: {
+          id: string
+          api_key_id: string
+          endpoint: string
+          requests_count: number
+          window_start: string
+          window_size_minutes: number
+          max_requests: number
+          user_id: string
+        }
+        Insert: {
+          id?: string
+          api_key_id: string
+          endpoint: string
+          requests_count?: number
+          window_start?: string
+          window_size_minutes?: number
+          max_requests?: number
+          user_id: string
+        }
+        Update: {
+          id?: string
+          api_key_id?: string
+          endpoint?: string
+          requests_count?: number
+          window_start?: string
+          window_size_minutes?: number
+          max_requests?: number
+          user_id?: string
         }
       }
       activity_logs: {
@@ -37,153 +325,22 @@ export interface Database {
           id: string
           action: string
           details: string | null
-          createdAt: string
+          created_at: string
+          user_id: string
         }
         Insert: {
           id?: string
           action: string
           details?: string | null
-          createdAt?: string
+          created_at?: string
+          user_id: string
         }
         Update: {
           id?: string
           action?: string
           details?: string | null
-          createdAt?: string
-        }
-      }
-      webhooks: {
-        Row: {
-          id: string
-          url: string
-          active: boolean
-          createdAt: string
-          lastTriggered: string | null
-          name: string
-          description: string | null
-        }
-        Insert: {
-          id?: string
-          url: string
-          active?: boolean
-          createdAt?: string
-          lastTriggered?: string | null
-          name: string
-          description?: string | null
-        }
-        Update: {
-          id?: string
-          url?: string
-          active?: boolean
-          createdAt?: string
-          lastTriggered?: string | null
-          name?: string
-          description?: string | null
-        }
-      }
-      webhook_executions: {
-        Row: {
-          id: string
-          webhook_id: string
-          status: 'success' | 'failed' | 'pending'
-          response_code: number | null
-          response_body: string | null
-          error_message: string | null
-          executed_at: string
-          execution_duration: string | null
-        }
-        Insert: {
-          id?: string
-          webhook_id: string
-          status: 'success' | 'failed' | 'pending'
-          response_code?: number | null
-          response_body?: string | null
-          error_message?: string | null
-          executed_at?: string
-          execution_duration?: string | null
-        }
-        Update: {
-          id?: string
-          webhook_id?: string
-          status?: 'success' | 'failed' | 'pending'
-          response_code?: number | null
-          response_body?: string | null
-          error_message?: string | null
-          executed_at?: string
-          execution_duration?: string | null
-        }
-      }
-      calendar_sync_settings: {
-        Row: {
-          id: string
-          provider: 'google' | 'outlook' | 'ical'
-          calendar_id: string
-          sync_token: string | null
-          last_synced: string | null
-          sync_frequency: string
-          is_active: boolean
-          created_at: string
-          settings: Json
-        }
-        Insert: {
-          id?: string
-          provider: 'google' | 'outlook' | 'ical'
-          calendar_id: string
-          sync_token?: string | null
-          last_synced?: string | null
-          sync_frequency?: string
-          is_active?: boolean
           created_at?: string
-          settings?: Json
-        }
-        Update: {
-          id?: string
-          provider?: 'google' | 'outlook' | 'ical'
-          calendar_id?: string
-          sync_token?: string | null
-          last_synced?: string | null
-          sync_frequency?: string
-          is_active?: boolean
-          created_at?: string
-          settings?: Json
-        }
-      }
-      calendar_sync_history: {
-        Row: {
-          id: string
-          sync_setting_id: string
-          status: 'success' | 'failed' | 'partial'
-          events_added: number
-          events_updated: number
-          events_deleted: number
-          error_message: string | null
-          started_at: string
-          completed_at: string | null
-          duration: string | null
-        }
-        Insert: {
-          id?: string
-          sync_setting_id: string
-          status: 'success' | 'failed' | 'partial'
-          events_added?: number
-          events_updated?: number
-          events_deleted?: number
-          error_message?: string | null
-          started_at?: string
-          completed_at?: string | null
-          duration?: string | null
-        }
-        Update: {
-          id?: string
-          sync_setting_id?: string
-          status?: 'success' | 'failed' | 'partial'
-          events_added?: number
-          events_updated?: number
-          events_deleted?: number
-          error_message?: string | null
-          started_at?: string
-          completed_at?: string | null
-          duration?: string | null
+          user_id?: string
         }
       }
     }
@@ -191,59 +348,38 @@ export interface Database {
       [_ in never]: never
     }
     Functions: {
-      get_webhook_executions: {
-        Args: {
-          p_webhook_id: string
-          p_limit?: number
-        }
-        Returns: {
-          execution_id: string
-          webhook_name: string
-          status: string
-          response_code: number | null
-          error_message: string | null
-          executed_at: string
-          execution_duration: string | null
-        }[]
+      parse_tracking_info: {
+        Args: { description: string }
+        Returns: { tracking_number: string; tracking_link: string }[]
       }
-      log_activity: {
-        Args: {
-          action_text: string
-          details_text?: string
-        }
-        Returns: void
+      detect_shipping_service: {
+        Args: { title: string }
+        Returns: 'UPS' | 'FedEx' | 'USPS' | 'Other'
       }
-      record_webhook_execution: {
+      extract_state_abbreviation: {
+        Args: { title: string }
+        Returns: string | null
+      }
+      process_calendar_event: {
         Args: {
-          p_webhook_id: string
-          p_status: string
-          p_response_code?: number
-          p_response_body?: string
-          p_error_message?: string
-          p_execution_duration?: string
+          p_event_id: string
+          p_title: string
+          p_description: string
+          p_start_date: string
+          p_start_time: string
+          p_end_date: string
+          p_end_time: string
+          p_status?: 'pending' | 'in_transit' | 'delivered' | 'cancelled'
         }
         Returns: string
-      }
-      start_calendar_sync: {
-        Args: {
-          p_sync_setting_id: string
-        }
-        Returns: string
-      }
-      complete_calendar_sync: {
-        Args: {
-          p_sync_history_id: string
-          p_status: string
-          p_events_added?: number
-          p_events_updated?: number
-          p_events_deleted?: number
-          p_error_message?: string
-        }
-        Returns: void
       }
     }
     Enums: {
-      [_ in never]: never
+      webhook_status: 'success' | 'failed' | 'pending' | 'retrying'
+      sync_status: 'success' | 'failed' | 'partial'
+      calendar_provider: 'google' | 'outlook' | 'ical'
+      shipping_service: 'UPS' | 'FedEx' | 'USPS' | 'Other'
+      delivery_status: 'pending' | 'in_transit' | 'delivered' | 'cancelled'
     }
   }
 } 
