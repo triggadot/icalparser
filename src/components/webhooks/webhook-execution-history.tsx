@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { supabase } from '@/lib/supabase/client';
 import { format } from 'date-fns';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -18,24 +18,7 @@ export function WebhookExecutionHistory({ webhookId }: WebhookExecutionHistoryPr
   const [events, setEvents] = useState<WebhookEvent[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    fetchEvents();
-
-    const channel = supabase
-      .channel('webhook_events_changes')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'webhook_events' },
-        () => fetchEvents()
-      )
-      .subscribe();
-
-    return () => {
-      channel.unsubscribe();
-    };
-  }, [webhookId]);
-
-  const fetchEvents = async () => {
+  const fetchEvents = useCallback(async () => {
     try {
       const { data, error } = await supabase
         .from('webhook_events')
@@ -51,7 +34,24 @@ export function WebhookExecutionHistory({ webhookId }: WebhookExecutionHistoryPr
     } finally {
       setLoading(false);
     }
-  };
+  }, [webhookId]);
+
+  useEffect(() => {
+    fetchEvents();
+
+    const channel = supabase
+      .channel('webhook_events_changes')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'webhook_events' },
+        () => fetchEvents()
+      )
+      .subscribe();
+
+    return () => {
+      channel.unsubscribe();
+    };
+  }, [fetchEvents]);
 
   const getStatusBadge = (status: WebhookEvent['status']) => {
     switch (status) {
